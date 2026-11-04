@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ExitAhead — Next 5 Highway Exits &amp; Services</title>
+  <meta name="description" content="Road trip companion showing a live map, the next 5 highway exits with distances, and nearby gas, food, hotels, EV charging, and rest areas." />
+  <meta name="theme-color" content="#0b1320" />
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <!-- Google Fonts: Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Highway Status Header -->
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="highway-shield" id="highwayShield" title="Detected Highway">
+          <span class="shield-Sub" id="shieldType">HWY</span>
+          <span class="shield-Num" id="shieldNumber">--</span>
+        </div>
+        <div class="route-meta">
+          <div class="route-title-row">
+            <h1 id="highwayName">ExitAhead</h1>
+            <button id="flipDirectionBtn" class="dir-pill" title="Flip travel direction 180°">
+              <span id="headingCompass">N</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 2.1l4 4-4 4"/>
+                <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"/>
+                <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/>
+              </svg>
+            </button>
+          </div>
+          <p class="route-subtitle" id="statusSubtitle">Select Live GPS or pick a highway to start</p>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="header-controls">
+        <button id="liveGpsBtn" class="btn btn-gps" type="button">
+          <span class="gps-dot" id="gpsDot"></span>
+          <span id="gpsBtnLabel">Use Live GPS</span>
+        </button>
+
+        <button id="simDriveBtn" class="btn btn-secondary" type="button" title="Simulate driving forward along the highway">
+          <span id="simBtnIcon">▶</span>
+          <span id="simBtnLabel">Demo Drive</span>
+        </button>
+
+        <div class="preset-select-wrap">
+          <select id="corridorPreset" class="preset-select" aria-label="Sample Highway Corridors">
+            <option value="" disabled>📍 Test Corridors...</option>
+            <option value="i35_tx" selected>I-35 North • Central Texas (Austin → Waco)</option>
+            <option value="i95_fl">I-95 South • Florida Coast (Daytona → Melbourne)</option>
+            <option value="i70_co">I-70 West • Colorado Rockies (Denver → Vail)</option>
+            <option value="i80_ne">I-80 West • Nebraska (Lincoln → Grand Island)</option>
+            <option value="i5_ca">I-5 North • California Central Valley</option>
+            <option value="i40_az">I-40 East • Northern Arizona (Flagstaff)</option>
+          </select>
+        </div>
+
+        <button id="unitToggleBtn" class="btn btn-icon" type="button" title="Toggle Miles / Kilometers">
+          <span id="unitLabel">MI</span>
+        </button>
+
+        <button id="themeToggleBtn" class="btn btn-icon" type="button" title="Toggle Day / Night Mode" aria-label="Toggle Day or Night Mode">
+          <span id="themeIcon">☀️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Split Layout: Map + Next 5 Exits List -->
+    <main class="main-workspace">
+      <!-- Left / Top: Interactive Map Panel -->
+      <section class="map-panel" id="mapPanel">
+        <div id="map" class="map-canvas"></div>
+
+        <!-- Floating Map Overlay Controls -->
+        <div class="map-overlay-top">
+          <div class="telemetry-pill" id="telemetryPill">
+            <span>SPEED <strong id="speedValue">68</strong> <small id="speedUnit">MPH</small></span>
+            <span class="sep">•</span>
+            <span>HEADING <strong id="headingDegrees">018° NNE</strong></span>
+          </div>
+          <div class="map-hint-pill" id="mapClickHint">
+            💡 Tip: Click anywhere near a highway on the map to move your car
+          </div>
+        </div>
+
+        <div class="map-overlay-bottom">
+          <button id="recenterBtn" class="map-fab" type="button" title="Keep map centered on vehicle">
+            🎯 Follow Car
+          </button>
+          <button id="refreshExitsBtn" class="map-fab" type="button" title="Refresh upcoming exits now">
+            🔄 Refresh Exits
+          </button>
+          <button id="toggleMapSizeBtn" class="map-fab mobile-only" type="button">
+            ↕ Expand Map
+          </button>
+        </div>
+      </section>
+
+      <!-- Right / Bottom: Next 5 Exits & Services Feed -->
+      <section class="exits-panel">
+        <!-- Filter Bar -->
+        <div class="exits-panel-header">
+          <div class="exits-header-top">
+            <div>
+              <h2 class="exits-heading">
+                Next 5 Exits Ahead
+                <span class="exit-count-badge" id="exitCountBadge">0</span>
+              </h2>
+              <p class="exits-subheading" id="lastUpdatedText">Scanning highway ahead...</p>
+            </div>
+
+            <div class="direction-adjust-group">
+              <label for="manualHeadingSelect" class="sr-only">Direction override</label>
+              <select id="manualHeadingSelect" class="heading-select" title="Override travel direction if stationary">
+                <option value="auto">🧭 Auto Heading</option>
+                <option value="0">⬆️ Northbound (0°)</option>
+                <option value="45">↗️ Northeast (45°)</option>
+                <option value="90">➡️ Eastbound (90°)</option>
+                <option value="135">↘️ Southeast (135°)</option>
+                <option value="180">⬇️ Southbound (180°)</option>
+                <option value="225">↙️ Southwest (225°)</option>
+                <option value="270">⬅️ Westbound (270°)</option>
+                <option value="315">↖️ Northwest (315°)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Service Filter Pills -->
+          <div class="service-filters" role="tablist" aria-label="Filter exits by service">
+            <button class="filter-chip active" data-filter="all" type="button">
+              All Exits
+            </button>
+            <button class="filter-chip" data-filter="gas" type="button">
+              ⛽ Gas <span class="chip-count" data-count-for="gas">0</span>
+            </button>
+            <button class="filter-chip" data-filter="food" type="button">
+              🍔 Food <span class="chip-count" data-count-for="food">0</span>
+            </button>
+            <button class="filter-chip" data-filter="hotel" type="button">
+              🏨 Hotel <span class="chip-count" data-count-for="hotel">0</span>
+            </button>
+            <button class="filter-chip" data-filter="ev" type="button">
+              ⚡ EV <span class="chip-count" data-count-for="ev">0</span>
+            </button>
+            <button class="filter-chip" data-filter="rest" type="button">
+              🚻 Rest / Truck <span class="chip-count" data-count-for="rest">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Exits Cards Container -->
+        <div id="exitsList" class="exits-list" aria-live="polite">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="app.js"></script>
+</body>
+</html>
