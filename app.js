@@ -116,7 +116,14 @@ const els = {
   lastUpdatedText: document.getElementById("lastUpdatedText"),
   manualHeadingSelect: document.getElementById("manualHeadingSelect"),
   exitsList: document.getElementById("exitsList"),
-  filterChips: document.querySelectorAll(".filter-chip")
+  filterChips: document.querySelectorAll(".filter-chip"),
+  locationSearchForm: document.getElementById("locationSearchForm"),
+  locationSearchInput: document.getElementById("locationSearchInput"),
+  gpsHelpModal: document.getElementById("gpsHelpModal"),
+  closeGpsModalBtn: document.getElementById("closeGpsModalBtn"),
+  retryGpsFromModalBtn: document.getElementById("retryGpsFromModalBtn"),
+  useIpLocationBtn: document.getElementById("useIpLocationBtn"),
+  gpsModalReason: document.getElementById("gpsModalReason")
 };
 
 // Leaflet Map & Layer References
@@ -214,6 +221,36 @@ function bindEvents() {
     toggleSimulatedDrive();
   });
 
+  if (els.locationSearchForm) {
+    els.locationSearchForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const query = (els.locationSearchInput.value || "").trim();
+      if (query) {
+        searchLocationAndJump(query);
+      }
+    });
+  }
+
+  if (els.closeGpsModalBtn) {
+    els.closeGpsModalBtn.addEventListener("click", () => {
+      els.gpsHelpModal.hidden = true;
+    });
+  }
+
+  if (els.retryGpsFromModalBtn) {
+    els.retryGpsFromModalBtn.addEventListener("click", () => {
+      els.gpsHelpModal.hidden = true;
+      startLiveGps();
+    });
+  }
+
+  if (els.useIpLocationBtn) {
+    els.useIpLocationBtn.addEventListener("click", () => {
+      els.gpsHelpModal.hidden = true;
+      fallbackToNetworkLocation();
+    });
+  }
+
   els.corridorPreset.addEventListener("change", (e) => {
     const key = e.target.value;
     const preset = CORRIDOR_PRESETS[key];
@@ -294,7 +331,69 @@ function bindEvents() {
   });
 }
 
-// ==================== LIVE GPS & SIMULATION ====================
+// ==================== LIVE GPS, NETWORK LOCATION & SEARCH ====================
+function handleGpsFix(pos) {
+  const { latitude, longitude, heading, speed } = pos.coords;
+
+  if (typeof heading === "number" && !Number.isNaN(heading) && speed && speed > 1.5) {
+    state.heading = heading;
+  } else if (state.lastGpsFix) {
+    const movedMeters = haversineMeters(
+      state.lastGpsFix.lat,
+      state.lastGpsFix.lon,
+      latitude,
+      longitude
+    );
+    if (movedMeters > 12) {
+      state.heading = computeBearing(
+        state.lastGpsFix.lat,
+        state.lastGpsFix.lon,
+        latitude,
+        longitude
+      );
+    }
+  }
+
+  if (typeof speed === "number" && !Number.isNaN(speed) && speed >= 0) {
+    state.speedMph = Math.max(0, Math.round(speed * 2.23694));
+  }
+
+  state.lat = latitude;
+  state.lon = longitude;
+  state.lastGpsFix = { lat: latitude, lon: longitude };
+
+  updateCarMarkerOnMap(state.followCar);
+  updateTelemetryUI();
+  recalculateExitDistances();
+
+  const distSinceQuery = state.lastQueryPos
+    ? haversineMeters(state.lastQueryPos.lat, state.lastQueryPos.lon, latitude, longitude)
+    : Infinity;
+
+  if (distSinceQuery > 1500) {
+    loadHighwayAndExits(true);
+  }
+}
+
+function handleGpsError(err) {
+  console.warn("GPS error:", err);
+  stopLiveGps();
+
+  const isInsecure = !window.isSecureContext && location.hostname !== "localhost";
+  if (isInsecure && els.gpsModalReason) {
+    els.gpsModalReason.innerHTML =
+      'You are viewing an unencrypted <code>http://</code> or <code>file://</code> address. Browsers silently block GPS unless you open the <strong>https://</strong> link (e.g. your Vercel or GitHub Pages URL).';
+  } else if (err.code === 1 && els.gpsModalReason) {
+    els.gpsModalReason.innerHTML =
+      'Your phone or computer returned <strong>"User denied Geolocation"</strong> without asking. This happens when Location Services is turned off for Safari/Chrome in your device Settings, or Location is set to "Block" in the address bar.';
+  }
+
+  if (els.gpsHelpModal) {
+    els.gpsHelpModal.hidden = false;
+  }
+  els.statusSubtitle.textContent = `GPS blocked (${err.message}) — see fix options or use Search`;
+}
+
 function startLiveGps() {
   if (!("geolocation" in navigator)) {
     alert("Geolocation is not supported by your browser.");
@@ -306,62 +405,50 @@ function startLiveGps() {
   }
 
   state.isLiveGps = true;
+  state.followCar = true;
+  state.lastQueryPos = null; // Force immediate highway scan on first GPS fix
   els.liveGpsBtn.classList.add("active");
   els.gpsBtnLabel.textContent = "Live GPS Active";
-  els.statusSubtitle.textContent = "Acquiring GPS satellite lock...";
+  els.statusSubtitle.textContent = "Requesting GPS location...";
 
-  state.gpsWatchId = navigator.geolocation.watchPosition(
+  // Step 1: Request an immediate fix inside the user tap gesture (fixes iOS Safari prompt behavior)
+  navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const { latitude, longitude, heading, speed } = pos.coords;
-
-      if (typeof heading === "number" && !Number.isNaN(heading) && speed && speed > 1.5) {
-        state.heading = heading;
-      } else if (state.lastGpsFix) {
-        const movedMeters = haversineMeters(
-          state.lastGpsFix.lat,
-          state.lastGpsFix.lon,
-          latitude,
-          longitude
-        );
-        if (movedMeters > 12) {
-          state.heading = computeBearing(
-            state.lastGpsFix.lat,
-            state.lastGpsFix.lon,
-            latitude,
-            longitude
-          );
+      handleGpsFix(pos);
+      // Step 2: Start continuous watchPosition once permission is confirmed
+      if (state.gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(state.gpsWatchId);
+      }
+      state.gpsWatchId = navigator.geolocation.watchPosition(
+        handleGpsFix,
+        (watchErr) => {
+          console.warn("Watch GPS warning:", watchErr);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 4000,
+          timeout: 15000
         }
-      }
-
-      if (typeof speed === "number" && !Number.isNaN(speed) && speed >= 0) {
-        state.speedMph = Math.max(0, Math.round(speed * 2.23694));
-      }
-
-      state.lat = latitude;
-      state.lon = longitude;
-      state.lastGpsFix = { lat: latitude, lon: longitude };
-
-      updateCarMarkerOnMap(state.followCar);
-      updateTelemetryUI();
-      recalculateExitDistances();
-
-      const distSinceQuery = state.lastQueryPos
-        ? haversineMeters(state.lastQueryPos.lat, state.lastQueryPos.lon, latitude, longitude)
-        : Infinity;
-
-      if (distSinceQuery > 1500) {
-        loadHighwayAndExits(false);
-      }
+      );
     },
     (err) => {
-      console.warn("GPS error:", err);
-      els.statusSubtitle.textContent = `GPS unavailable (${err.message}) — using selected corridor`;
-      stopLiveGps();
+      // If high-accuracy GPS timed out indoors, try standard network/Wi-Fi geolocation before giving up
+      if (err.code === 3 || err.code === 2) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            handleGpsFix(pos);
+          },
+          handleGpsError,
+          { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
+        );
+      } else {
+        handleGpsError(err);
+      }
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 3000,
-      timeout: 12000
+      maximumAge: 10000,
+      timeout: 10000
     }
   );
 }
@@ -374,6 +461,53 @@ function stopLiveGps() {
   state.isLiveGps = false;
   els.liveGpsBtn.classList.remove("active");
   els.gpsBtnLabel.textContent = "Use Live GPS";
+}
+
+async function fallbackToNetworkLocation() {
+  els.statusSubtitle.textContent = "Finding your approximate area via network...";
+  try {
+    const res = await fetch("https://get.geojs.io/v1/ip/geo.json");
+    if (!res.ok) throw new Error("Network geo lookup failed");
+    const data = await res.json();
+    const lat = parseFloat(data.latitude);
+    const lon = parseFloat(data.longitude);
+    if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+      state.lat = lat;
+      state.lon = lon;
+      state.followCar = true;
+      updateCarMarkerOnMap(true);
+      els.statusSubtitle.textContent = `Located near ${data.city || "your area"}, ${data.region || ""} • Tap map highway to refine`;
+      loadHighwayAndExits(true);
+    }
+  } catch (err) {
+    console.warn("Network location error:", err);
+    els.statusSubtitle.textContent = "Could not detect network location — use the Search box above";
+  }
+}
+
+async function searchLocationAndJump(queryText) {
+  els.statusSubtitle.textContent = `Searching for "${queryText}"...`;
+  try {
+    const res = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(queryText)}&limit=1`
+    );
+    if (!res.ok) throw new Error("Search failed");
+    const data = await res.json();
+    const feat = data.features && data.features[0];
+    if (!feat || !feat.geometry?.coordinates) {
+      els.statusSubtitle.textContent = `No match found for "${queryText}"`;
+      return;
+    }
+    if (state.isLiveGps) stopLiveGps();
+    state.lon = feat.geometry.coordinates[0];
+    state.lat = feat.geometry.coordinates[1];
+    state.followCar = true;
+    updateCarMarkerOnMap(true);
+    loadHighwayAndExits(true);
+  } catch (err) {
+    console.warn("Search error:", err);
+    els.statusSubtitle.textContent = "Location search failed — try clicking on the map";
+  }
 }
 
 function toggleSimulatedDrive(forceState) {

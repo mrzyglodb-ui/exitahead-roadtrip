@@ -884,3 +884,136 @@ body {
     justify-self: start;
   }
 }
+
+/* ==================== SEARCH FORM & GPS TROUBLESHOOTING MODAL ==================== */
+.search-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-input {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  width: 165px;
+}
+
+.search-input:focus {
+  outline: 2px solid var(--sign-green-bright);
+  border-color: transparent;
+}
+
+.gps-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.gps-modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.gps-modal-card {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-highlight);
+  border-radius: 16px;
+  max-width: 620px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.gps-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--sign-green);
+  color: #ffffff;
+}
+
+.gps-modal-header h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.gps-modal-body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gps-modal-lead {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.gps-fix-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.gps-fix-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.gps-fix-box strong {
+  color: var(--text-primary);
+}
+
+.gps-fix-box ol {
+  margin-top: 6px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.gps-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .gps-fix-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .search-input {
+    width: 135px;
+  }
+}
+

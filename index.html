@@ -59,6 +59,17 @@
           <span id="simBtnLabel">Demo Drive</span>
         </button>
 
+        <form id="locationSearchForm" class="search-form" autocomplete="off">
+          <input
+            type="text"
+            id="locationSearchInput"
+            class="search-input"
+            placeholder="🔍 City, Zip, or Hwy..."
+            aria-label="Search city, zip code, or highway"
+          />
+          <button type="submit" class="btn btn-icon" title="Jump to location">Go</button>
+        </form>
+
         <div class="preset-select-wrap">
           <select id="corridorPreset" class="preset-select" aria-label="Sample Highway Corridors">
             <option value="" disabled>📍 Test Corridors...</option>
@@ -81,6 +92,48 @@
       </div>
     </header>
 
+    <!-- GPS Permission Help & Fallback Banner (Hidden unless permission denied) -->
+    <div id="gpsHelpModal" class="gps-modal-backdrop" hidden>
+      <div class="gps-modal-card" role="dialog" aria-labelledby="gpsModalTitle">
+        <div class="gps-modal-header">
+          <h3 id="gpsModalTitle">📍 Why didn't your browser ask for GPS permission?</h3>
+          <button id="closeGpsModalBtn" class="modal-close-btn" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="gps-modal-body">
+          <p id="gpsModalReason" class="gps-modal-lead">
+            When a phone or computer blocks location at the system level, the browser returns <strong>"User denied Geolocation"</strong> immediately without showing a popup.
+          </p>
+
+          <div class="gps-fix-grid">
+            <div class="gps-fix-box">
+              <strong>📱 iPhone / iPad (iOS)</strong>
+              <ol>
+                <li>Open iPhone <strong>Settings → Privacy &amp; Security → Location Services</strong>.</li>
+                <li>Scroll down to <strong>Safari Websites</strong> (or <strong>Chrome</strong>) and set it to <strong>"While Using the App"</strong>.</li>
+                <li>In Safari's address bar, tap <strong>AA</strong> (or the page icon) → <strong>Website Settings → Location → Allow</strong>.</li>
+              </ol>
+            </div>
+            <div class="gps-fix-box">
+              <strong>🤖 Android / 💻 Desktop</strong>
+              <ol>
+                <li>Tap the <strong>Lock / Tune icon</strong> left of the URL in the address bar → <strong>Permissions → Location → Allow</strong>.</li>
+                <li>On Windows: check <strong>Settings → Privacy &amp; security → Location</strong> and turn ON <em>Let desktop apps access your location</em>.</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="gps-modal-actions">
+            <button id="retryGpsFromModalBtn" class="btn btn-gps" type="button">
+              🔄 Try Live GPS Again
+            </button>
+            <button id="useIpLocationBtn" class="btn btn-secondary" type="button">
+              🌐 Jump to My Approximate Area (No GPS Needed)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Split Layout: Map + Next 5 Exits List -->
     <main class="main-workspace">
       <!-- Left / Top: Interactive Map Panel -->
@@ -95,7 +148,7 @@
             <span>HEADING <strong id="headingDegrees">018° NNE</strong></span>
           </div>
           <div class="map-hint-pill" id="mapClickHint">
-            💡 Tip: Click anywhere near a highway on the map to move your car
+            💡 Tip: Tap anywhere near a highway on the map to place your car
           </div>
         </div>
 
