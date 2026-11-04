@@ -117,6 +117,8 @@ const els = {
   manualHeadingSelect: document.getElementById("manualHeadingSelect"),
   exitsList: document.getElementById("exitsList"),
   filterChips: document.querySelectorAll(".filter-chip"),
+  toolsDrawerBtn: document.getElementById("toolsDrawerBtn"),
+  toolsDrawer: document.getElementById("toolsDrawer"),
   locationSearchForm: document.getElementById("locationSearchForm"),
   locationSearchInput: document.getElementById("locationSearchInput"),
   gpsHelpModal: document.getElementById("gpsHelpModal"),
@@ -198,8 +200,8 @@ function setMapThemeTiles(theme) {
 function createCarIcon(headingDeg) {
   return L.divIcon({
     className: "car-marker-wrap",
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
     html: `
       <div class="car-puck" style="transform: rotate(${Math.round(headingDeg)}deg)" title="Your Vehicle">
         ▲
@@ -217,6 +219,15 @@ function bindEvents() {
     }
   });
 
+  if (els.toolsDrawerBtn && els.toolsDrawer) {
+    els.toolsDrawerBtn.addEventListener("click", () => {
+      const nextHidden = !els.toolsDrawer.hidden;
+      els.toolsDrawer.hidden = nextHidden;
+      els.toolsDrawerBtn.setAttribute("aria-expanded", String(!nextHidden));
+      setTimeout(() => map && map.invalidateSize(), 150);
+    });
+  }
+
   els.simDriveBtn.addEventListener("click", () => {
     toggleSimulatedDrive();
   });
@@ -227,6 +238,9 @@ function bindEvents() {
       const query = (els.locationSearchInput.value || "").trim();
       if (query) {
         searchLocationAndJump(query);
+        if (els.toolsDrawer && window.innerWidth <= 900) {
+          els.toolsDrawer.hidden = true;
+        }
       }
     });
   }
@@ -263,6 +277,9 @@ function bindEvents() {
     state.manualHeading = "auto";
     els.manualHeadingSelect.value = "auto";
     state.followCar = true;
+    if (els.toolsDrawer && window.innerWidth <= 900) {
+      els.toolsDrawer.hidden = true;
+    }
     updateCarMarkerOnMap(true);
     updateTelemetryUI();
     loadHighwayAndExits(true);
@@ -334,33 +351,55 @@ function bindEvents() {
 // ==================== LIVE GPS, NETWORK LOCATION & SEARCH ====================
 function handleGpsFix(pos) {
   const { latitude, longitude, heading, speed } = pos.coords;
+  const nowMs = pos.timestamp || Date.now();
 
-  if (typeof heading === "number" && !Number.isNaN(heading) && speed && speed > 1.5) {
-    state.heading = heading;
-  } else if (state.lastGpsFix) {
-    const movedMeters = haversineMeters(
+  let movedMeters = 0;
+  let deltaSec = 0;
+
+  if (state.lastGpsFix) {
+    movedMeters = haversineMeters(
       state.lastGpsFix.lat,
       state.lastGpsFix.lon,
       latitude,
       longitude
     );
-    if (movedMeters > 12) {
-      state.heading = computeBearing(
-        state.lastGpsFix.lat,
-        state.lastGpsFix.lon,
-        latitude,
-        longitude
-      );
-    }
+    deltaSec = Math.max(0.5, (nowMs - state.lastGpsFix.timeMs) / 1000);
   }
 
+  // 1. Update heading from GPS hardware or movement vector
+  if (typeof heading === "number" && !Number.isNaN(heading) && heading >= 0 && speed && speed > 1.2) {
+    state.heading = heading;
+  } else if (state.lastGpsFix && movedMeters > 8) {
+    state.heading = computeBearing(
+      state.lastGpsFix.lat,
+      state.lastGpsFix.lon,
+      latitude,
+      longitude
+    );
+  }
+
+  // 2. Calculate accurate real-time speed (hardware speed in m/s, or fallback to distance/time delta)
   if (typeof speed === "number" && !Number.isNaN(speed) && speed >= 0) {
-    state.speedMph = Math.max(0, Math.round(speed * 2.23694));
+    const rawMph = speed * 2.23694;
+    state.speedMph = rawMph < 1.2 ? 0 : Math.round(rawMph);
+  } else if (state.lastGpsFix && deltaSec > 0 && deltaSec < 30) {
+    if (movedMeters < 3.0) {
+      state.speedMph = 0;
+    } else {
+      const calcMph = (movedMeters / deltaSec) * 2.23694;
+      if (calcMph <= 115) {
+        state.speedMph = Math.round(
+          state.speedMph > 0 ? state.speedMph * 0.35 + calcMph * 0.65 : calcMph
+        );
+      }
+    }
+  } else if (!state.lastGpsFix) {
+    state.speedMph = 0;
   }
 
   state.lat = latitude;
   state.lon = longitude;
-  state.lastGpsFix = { lat: latitude, lon: longitude };
+  state.lastGpsFix = { lat: latitude, lon: longitude, timeMs: nowMs };
 
   updateCarMarkerOnMap(state.followCar);
   updateTelemetryUI();
@@ -391,7 +430,7 @@ function handleGpsError(err) {
   if (els.gpsHelpModal) {
     els.gpsHelpModal.hidden = false;
   }
-  els.statusSubtitle.textContent = `GPS blocked (${err.message}) — see fix options or use Search`;
+  els.statusSubtitle.textContent = `GPS blocked (${err.message})`;
 }
 
 function startLiveGps() {
@@ -406,16 +445,20 @@ function startLiveGps() {
 
   state.isLiveGps = true;
   state.followCar = true;
+  state.speedMph = 0; // Reset demo preset speed immediately
+  state.lastGpsFix = null;
   state.lastQueryPos = null; // Force immediate highway scan on first GPS fix
-  els.liveGpsBtn.classList.add("active");
-  els.gpsBtnLabel.textContent = "Live GPS Active";
-  els.statusSubtitle.textContent = "Requesting GPS location...";
+  updateTelemetryUI();
 
-  // Step 1: Request an immediate fix inside the user tap gesture (fixes iOS Safari prompt behavior)
+  els.liveGpsBtn.classList.add("active");
+  els.gpsBtnLabel.textContent = "GPS Active";
+  els.statusSubtitle.textContent = "Locking GPS...";
+
+  // Step 1: Request an immediate fix inside the user tap gesture
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       handleGpsFix(pos);
-      // Step 2: Start continuous watchPosition once permission is confirmed
+      // Step 2: Start continuous high-frequency watchPosition (maximumAge: 0 for real-time speed)
       if (state.gpsWatchId !== null) {
         navigator.geolocation.clearWatch(state.gpsWatchId);
       }
@@ -426,20 +469,19 @@ function startLiveGps() {
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 4000,
+          maximumAge: 0,
           timeout: 15000
         }
       );
     },
     (err) => {
-      // If high-accuracy GPS timed out indoors, try standard network/Wi-Fi geolocation before giving up
       if (err.code === 3 || err.code === 2) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             handleGpsFix(pos);
           },
           handleGpsError,
-          { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
+          { enableHighAccuracy: false, maximumAge: 15000, timeout: 10000 }
         );
       } else {
         handleGpsError(err);
@@ -447,7 +489,7 @@ function startLiveGps() {
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 10000,
+      maximumAge: 0,
       timeout: 10000
     }
   );
@@ -460,7 +502,7 @@ function stopLiveGps() {
   }
   state.isLiveGps = false;
   els.liveGpsBtn.classList.remove("active");
-  els.gpsBtnLabel.textContent = "Use Live GPS";
+  els.gpsBtnLabel.textContent = "Live GPS";
 }
 
 async function fallbackToNetworkLocation() {
@@ -847,7 +889,24 @@ async function probeRampSignage(rmp, fallbackSeq, signal) {
  * and also refines generic exit titles if a local cross-street is found.
  */
 async function enrichSingleExitWithPhoton(exitObj, signal) {
-  const url = `${PHOTON_REVERSE}?lat=${exitObj.lat.toFixed(5)}&lon=${exitObj.lon.toFixed(5)}&radius=1.45&limit=38&osm_tag=amenity&osm_tag=tourism&osm_tag=shop&osm_tag=highway`;
+  const tagsQuery = [
+    "amenity:fuel",
+    "amenity:fast_food",
+    "amenity:restaurant",
+    "amenity:cafe",
+    "amenity:charging_station",
+    "amenity:toilets",
+    "amenity:hospital",
+    "tourism:hotel",
+    "tourism:motel",
+    "shop:convenience",
+    "highway:rest_area",
+    "highway:services"
+  ]
+    .map((t) => `osm_tag=${t}`)
+    .join("&");
+
+  const url = `${PHOTON_REVERSE}?lat=${exitObj.lat.toFixed(5)}&lon=${exitObj.lon.toFixed(5)}&radius=2.2&limit=50&${tagsQuery}`;
 
   try {
     const res = await fetch(url, { signal });

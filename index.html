@@ -24,71 +24,98 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- Top Highway Status Header -->
+    <!-- Compact Top Highway Header -->
     <header class="topbar">
-      <div class="brand-group">
-        <div class="highway-shield" id="highwayShield" title="Detected Highway">
-          <span class="shield-Sub" id="shieldType">HWY</span>
-          <span class="shield-Num" id="shieldNumber">--</span>
-        </div>
-        <div class="route-meta">
-          <div class="route-title-row">
-            <h1 id="highwayName">ExitAhead</h1>
-            <button id="flipDirectionBtn" class="dir-pill" title="Flip travel direction 180°">
-              <span id="headingCompass">N</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 2.1l4 4-4 4"/>
-                <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"/>
-                <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/>
-              </svg>
-            </button>
+      <div class="topbar-main-row">
+        <div class="brand-group">
+          <div class="highway-shield" id="highwayShield" title="Detected Highway">
+            <span class="shield-Sub" id="shieldType">HWY</span>
+            <span class="shield-Num" id="shieldNumber">--</span>
           </div>
-          <p class="route-subtitle" id="statusSubtitle">Select Live GPS or pick a highway to start</p>
+          <div class="route-meta">
+            <div class="route-title-row">
+              <h1 id="highwayName">ExitAhead</h1>
+              <button id="flipDirectionBtn" class="dir-pill" title="Flip travel direction 180°">
+                <span id="headingCompass">N</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 2.1l4 4-4 4"/>
+                  <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"/>
+                  <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/>
+                </svg>
+              </button>
+            </div>
+            <div class="route-sub-row">
+              <span class="speed-badge" id="telemetryPill">
+                <strong id="speedValue">0</strong> <small id="speedUnit">MPH</small>
+                <span class="sep">•</span>
+                <span id="headingDegrees">000° N</span>
+              </span>
+              <span class="route-subtitle" id="statusSubtitle">Tap Live GPS to track</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="primary-actions">
+          <button id="liveGpsBtn" class="btn btn-gps" type="button">
+            <span class="gps-dot" id="gpsDot"></span>
+            <span id="gpsBtnLabel">Live GPS</span>
+          </button>
+
+          <button id="toolsDrawerBtn" class="btn btn-icon" type="button" title="Search, Demo &amp; Settings" aria-expanded="false">
+            ⚙️
+          </button>
         </div>
       </div>
 
-      <!-- Controls Bar -->
-      <div class="header-controls">
-        <button id="liveGpsBtn" class="btn btn-gps" type="button">
-          <span class="gps-dot" id="gpsDot"></span>
-          <span id="gpsBtnLabel">Use Live GPS</span>
-        </button>
+      <!-- Collapsible Tools & Demo Drawer (Hidden by default on mobile to keep UI uncluttered) -->
+      <div id="toolsDrawer" class="tools-drawer" hidden>
+        <div class="tools-drawer-inner">
+          <form id="locationSearchForm" class="search-form" autocomplete="off">
+            <input
+              type="text"
+              id="locationSearchInput"
+              class="search-input"
+              placeholder="🔍 Search City, Zip, or Hwy..."
+              aria-label="Search city, zip code, or highway"
+            />
+            <button type="submit" class="btn btn-icon">Go</button>
+          </form>
 
-        <button id="simDriveBtn" class="btn btn-secondary" type="button" title="Simulate driving forward along the highway">
-          <span id="simBtnIcon">▶</span>
-          <span id="simBtnLabel">Demo Drive</span>
-        </button>
+          <button id="simDriveBtn" class="btn btn-secondary" type="button" title="Simulate driving forward along the highway">
+            <span id="simBtnIcon">▶</span>
+            <span id="simBtnLabel">Demo Drive</span>
+          </button>
 
-        <form id="locationSearchForm" class="search-form" autocomplete="off">
-          <input
-            type="text"
-            id="locationSearchInput"
-            class="search-input"
-            placeholder="🔍 City, Zip, or Hwy..."
-            aria-label="Search city, zip code, or highway"
-          />
-          <button type="submit" class="btn btn-icon" title="Jump to location">Go</button>
-        </form>
-
-        <div class="preset-select-wrap">
           <select id="corridorPreset" class="preset-select" aria-label="Sample Highway Corridors">
             <option value="" disabled>📍 Test Corridors...</option>
-            <option value="i35_tx" selected>I-35 North • Central Texas (Austin → Waco)</option>
-            <option value="i95_fl">I-95 South • Florida Coast (Daytona → Melbourne)</option>
-            <option value="i70_co">I-70 West • Colorado Rockies (Denver → Vail)</option>
-            <option value="i80_ne">I-80 West • Nebraska (Lincoln → Grand Island)</option>
-            <option value="i5_ca">I-5 North • California Central Valley</option>
-            <option value="i40_az">I-40 East • Northern Arizona (Flagstaff)</option>
+            <option value="i35_tx" selected>I-35 North • Central Texas</option>
+            <option value="i95_fl">I-95 South • Florida Coast</option>
+            <option value="i70_co">I-70 West • Colorado Rockies</option>
+            <option value="i80_ne">I-80 West • Nebraska</option>
+            <option value="i5_ca">I-5 North • California</option>
+            <option value="i40_az">I-40 East • Arizona</option>
           </select>
+
+          <select id="manualHeadingSelect" class="heading-select" title="Override travel direction if stationary">
+            <option value="auto">🧭 Auto Heading</option>
+            <option value="0">⬆️ North (0°)</option>
+            <option value="45">↗️ NE (45°)</option>
+            <option value="90">➡️ East (90°)</option>
+            <option value="135">↘️ SE (135°)</option>
+            <option value="180">⬇️ South (180°)</option>
+            <option value="225">↙️ SW (225°)</option>
+            <option value="270">⬅️ West (270°)</option>
+            <option value="315">↖️ NW (315°)</option>
+          </select>
+
+          <button id="unitToggleBtn" class="btn btn-icon" type="button" title="Toggle Miles / Kilometers">
+            <span id="unitLabel">MI</span>
+          </button>
+
+          <button id="themeToggleBtn" class="btn btn-icon" type="button" title="Toggle Day / Night Mode" aria-label="Toggle Day or Night Mode">
+            <span id="themeIcon">☀️</span>
+          </button>
         </div>
-
-        <button id="unitToggleBtn" class="btn btn-icon" type="button" title="Toggle Miles / Kilometers">
-          <span id="unitLabel">MI</span>
-        </button>
-
-        <button id="themeToggleBtn" class="btn btn-icon" type="button" title="Toggle Day / Night Mode" aria-label="Toggle Day or Night Mode">
-          <span id="themeIcon">☀️</span>
-        </button>
       </div>
     </header>
 
@@ -135,29 +162,17 @@
     </div>
 
     <!-- Main Split Layout: Map + Next 5 Exits List -->
-    <main class="main-workspace">
+    <main class="main-workspace" id="mainWorkspace">
       <!-- Left / Top: Interactive Map Panel -->
       <section class="map-panel" id="mapPanel">
         <div id="map" class="map-canvas"></div>
 
-        <!-- Floating Map Overlay Controls -->
-        <div class="map-overlay-top">
-          <div class="telemetry-pill" id="telemetryPill">
-            <span>SPEED <strong id="speedValue">68</strong> <small id="speedUnit">MPH</small></span>
-            <span class="sep">•</span>
-            <span>HEADING <strong id="headingDegrees">018° NNE</strong></span>
-          </div>
-          <div class="map-hint-pill" id="mapClickHint">
-            💡 Tip: Tap anywhere near a highway on the map to place your car
-          </div>
-        </div>
-
         <div class="map-overlay-bottom">
           <button id="recenterBtn" class="map-fab" type="button" title="Keep map centered on vehicle">
-            🎯 Follow Car
+            🎯 Follow
           </button>
           <button id="refreshExitsBtn" class="map-fab" type="button" title="Refresh upcoming exits now">
-            🔄 Refresh Exits
+            🔄 Refresh
           </button>
           <button id="toggleMapSizeBtn" class="map-fab mobile-only" type="button">
             ↕ Expand Map
@@ -167,37 +182,22 @@
 
       <!-- Right / Bottom: Next 5 Exits & Services Feed -->
       <section class="exits-panel">
-        <!-- Filter Bar -->
+        <!-- Sticky Filter Bar -->
         <div class="exits-panel-header">
           <div class="exits-header-top">
-            <div>
+            <div class="exits-title-line">
               <h2 class="exits-heading">
-                Next 5 Exits Ahead
+                Next 5 Exits
                 <span class="exit-count-badge" id="exitCountBadge">0</span>
               </h2>
-              <p class="exits-subheading" id="lastUpdatedText">Scanning highway ahead...</p>
-            </div>
-
-            <div class="direction-adjust-group">
-              <label for="manualHeadingSelect" class="sr-only">Direction override</label>
-              <select id="manualHeadingSelect" class="heading-select" title="Override travel direction if stationary">
-                <option value="auto">🧭 Auto Heading</option>
-                <option value="0">⬆️ Northbound (0°)</option>
-                <option value="45">↗️ Northeast (45°)</option>
-                <option value="90">➡️ Eastbound (90°)</option>
-                <option value="135">↘️ Southeast (135°)</option>
-                <option value="180">⬇️ Southbound (180°)</option>
-                <option value="225">↙️ Southwest (225°)</option>
-                <option value="270">⬅️ Westbound (270°)</option>
-                <option value="315">↖️ Northwest (315°)</option>
-              </select>
+              <span class="exits-subheading" id="lastUpdatedText">Scanning...</span>
             </div>
           </div>
 
           <!-- Service Filter Pills -->
           <div class="service-filters" role="tablist" aria-label="Filter exits by service">
             <button class="filter-chip active" data-filter="all" type="button">
-              All Exits
+              All
             </button>
             <button class="filter-chip" data-filter="gas" type="button">
               ⛽ Gas <span class="chip-count" data-count-for="gas">0</span>
@@ -212,7 +212,7 @@
               ⚡ EV <span class="chip-count" data-count-for="ev">0</span>
             </button>
             <button class="filter-chip" data-filter="rest" type="button">
-              🚻 Rest / Truck <span class="chip-count" data-count-for="rest">0</span>
+              🚻 Rest <span class="chip-count" data-count-for="rest">0</span>
             </button>
           </div>
         </div>
